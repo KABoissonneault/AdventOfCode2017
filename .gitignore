@@ -30,3 +30,8 @@
 *.exe
 *.out
 *.app
+AdventOfCode2017/.vs/
+*.log
+*.lastbuildstate
+Debug/
+Release/
