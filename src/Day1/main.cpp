@@ -8,6 +8,8 @@
 
 #include "Algorithm.h"
 
+using namespace std::literals;
+
 namespace kab_advent {
 	int part1() {
 		const auto captcha = [] {
@@ -45,11 +47,24 @@ namespace kab_advent {
 		return EXIT_SUCCESS;
 	}
 
-	int day1() {
-		if ( const auto result = part1() ) {
-			return result;
-		}
+	int part2() {
 		return EXIT_SUCCESS;
+	}
+
+	int day1( int argc, const char * argv[] ) {
+		char * strEnd = nullptr;
+		const auto part = argc >= 1 ? std::strtol( argv[0], &strEnd, 10 ) : 1;
+		if ( strEnd == argv[0] ) {
+			throw std::runtime_error { "Parameter \""s + argv[0] + "\" was not an integer" };
+		}
+		switch ( part ) {
+		case 1:
+			return part1();
+		case 2:
+			return part2();
+		default:
+			throw std::runtime_error { "Parameter \""s + argv[0] + "\" was not a valid part" };
+		}
 	}
 }
 
@@ -59,7 +74,7 @@ int main( int argc, const char* argv[] ) try {
 	std::cin.sync_with_stdio( false );
 	
 	try {
-		return kab_advent::day1();
+		return kab_advent::day1( argc - 1, argv + 1 );
 	}
 	catch ( const std::runtime_error & e ) {
 		std::cerr << "Invalid input: " << e.what() << "\n";
