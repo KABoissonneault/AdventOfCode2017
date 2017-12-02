@@ -15,7 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\AdventUtil\Algorithm.h">
+    <ClInclude Include="..\..\src\AdventUtil\error.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\AdventUtil\algorithm.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
