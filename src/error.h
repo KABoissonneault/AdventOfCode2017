@@ -27,7 +27,7 @@ namespace kab_advent {
 		std::string m_str;
 	};
 
-	auto operator<<(std::ostream& o, error_info const& error) -> std::ostream& {
+	inline auto operator<<(std::ostream& o, error_info const& error) -> std::ostream& {
 		if (error.get_error_message().size() > 0) {
 			o << error.get_error_code().message() << ": " << error.get_error_message();
 		}
