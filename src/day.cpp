@@ -2,6 +2,7 @@
 #include <expected.hpp>
 #include <numeric>
 #include <cctype>
+#include <cassert>
 
 #include "algorithm.h"
 #include "error.h"
@@ -201,8 +202,25 @@ namespace kab_advent {
 			}
 
 			auto part2(input_view_t matrix) -> int {
-				(void)matrix;
-				throw std::runtime_error("part2 not implemented");
+				auto dividends = std::vector<int>();
+				std::transform(matrix.begin(), matrix.end(), std::back_inserter(dividends),
+					[](row_t const& row) -> int {
+					auto const endRow = row.data() + row.size();
+					for (int const& element : row) {
+						auto const itFound = std::find_if(&element + 1, endRow, [element] (const int n) {
+							return element % n == 0 || n % element == 0;
+						} );
+						
+						if (itFound != endRow) {
+							auto const n = *itFound;
+							assert(element != n);
+							return std::max(element, *itFound) / std::min(element, *itFound);
+						}
+					}
+					throw std::runtime_error("one row had no numbers evenly divisible");
+				});
+
+				return std::accumulate(dividends.begin(), dividends.end(), 0);
 			}
 
 			auto solve(gsl::span<std::string_view const> args) -> int {
