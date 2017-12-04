@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\algorithm.h" />
+    <ClInclude Include="..\..\src\conversion.h" />
     <ClInclude Include="..\..\src\day.h" />
     <ClInclude Include="..\..\src\error.h" />
     <ClInclude Include="..\..\src\expected.hpp" />
