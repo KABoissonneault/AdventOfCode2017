@@ -3,10 +3,18 @@
 #include <numeric>
 #include <cctype>
 #include <cassert>
+#include <cmath>
 
 #include "algorithm.h"
 #include "error.h"
+#include "conversion.h"
 #include <fstream>
+
+#if defined(_MSC_VER)
+#define UNREACHABLE() __assume(0)
+#else
+#define UNREACHABLE() __builtin_unreachable()
+#endif
 
 namespace kab_advent {
 	namespace {
@@ -106,15 +114,6 @@ namespace kab_advent {
 			auto do_input(std::string_view arg) -> expected<input_t> {
 				auto input = input_t();
 				auto row = row_t();
-				auto const parse_token = [](std::string const& token) -> expected<int> {
-					char* conversionEnd = nullptr;
-					auto const tokenValue = std::strtol(token.c_str(), &conversionEnd, 10);
-					if (conversionEnd == token.c_str()) {
-						return expected<int>{ unexpect,
-							error_info(std::make_error_code(std::errc::invalid_argument), "Invalid token \""s.append(token).append("\"")) };
-					}
-					return tokenValue;
-				};
 
 				while (arg.size() > 0) {
 					auto const itSeparator = std::find_if(arg.begin(), arg.end(), [](char c) { 
@@ -128,7 +127,7 @@ namespace kab_advent {
 					}
 					else if (*itSeparator == '\t') {
 						auto const token_size = static_cast<std::string_view::size_type>(std::distance(arg.begin(), itSeparator));
-						auto const token_value = parse_token(std::string(arg.data(), token_size));
+						auto const token_value = to_int(arg.substr(token_size));
 						if (!token_value) {
 							return expected<input_t>(unexpect, token_value.error());
 						}
@@ -137,7 +136,7 @@ namespace kab_advent {
 					}
 					else if (*itSeparator == '\n') {
 						auto const token_size = static_cast<std::string_view::size_type>(std::distance(arg.begin(), itSeparator));
-						auto const token_value = parse_token(std::string(arg.data(), token_size));
+						auto const token_value = to_int(arg.substr(token_size));
 						if (!token_value) {
 							return expected<input_t>(unexpect, token_value.error());
 						}
@@ -249,6 +248,143 @@ namespace kab_advent {
 				}
 			}
 		}
+
+		namespace day3 {
+			using input_t = int;
+
+			auto input(gsl::span<std::string_view const> args) -> expected<input_t> {
+				if (args.size() == 0) {
+					auto input = input_t();
+					if (!std::cin >> input) {
+						return expected<input_t>{ unexpect,
+							error_info(std::make_error_code(std::errc::invalid_argument), "Could not parse input to an integer") };
+					}
+
+					return input;
+				}
+				else if (args[0] == "--input") {
+					if (args.size() < 2) {
+						return expected<input_t>{ unexpect,
+							error_info(std::make_error_code(std::errc::invalid_argument), "Missing input after --input") };
+					}
+					
+					return to_int(args[1]);
+				}
+				else if (args[0] == "--file") {
+					if (args.size() < 2) {
+						return expected<input_t>{ unexpect,
+							error_info(std::make_error_code(std::errc::invalid_argument), "Missing filename after --input") };
+					}
+
+					auto const filepath = args[1];
+					auto file = std::ifstream(std::string(filepath));
+					if (!file) {
+						return expected<input_t>{ unexpect,
+							error_info(std::make_error_code(std::errc::invalid_argument), "File \""s.append(filepath).append("\" could not be opened")) };
+					}
+
+					auto input = input_t();
+					if (!(file >> input)) {
+						return expected<input_t>{ unexpect,
+							error_info(std::make_error_code(std::errc::invalid_argument), "Could not parse input to an integer") };
+					}
+
+					return input;
+				}
+				else {
+					return expected<input_t>{ unexpect,
+						error_info(std::make_error_code(std::errc::invalid_argument), "Invalid parameter \""s.append(args[0]).append("\"")) };
+				}
+			}
+
+			auto part1(input_t n) -> int {
+				if (n < 1) {
+					throw std::runtime_error("Invalid index \"" + std::to_string(n) + "\": must be greater than 0");
+				}
+
+				// Algorithm from https://math.stackexchange.com/a/163093
+				auto const m = static_cast<input_t>(std::sqrt(n));
+				auto const k = [n, m] {
+					if (m % 2 == 1) {
+						return (m - 1) / 2;
+					}
+					else if (n >= m*(m + 1)) {
+						return m / 2;
+					}
+					else {
+						return (m / 2) - 1;
+					}
+				}();
+
+				struct vector {
+					input_t x, y;
+				};
+
+				auto const coords = [k] ( input_t n ) -> vector {
+					auto const square = [](input_t a) { return static_cast<input_t>(pow(a,2)); };
+
+					if (k * 2 *(k * 2 + 1) < n && n <= square(k * 2 + 1)) {
+						return { n - 4 * square(k) - 3 * k, k };
+					}
+					else if (square(2 * k + 1) < n && n <= 2 * (k + 1)*(2*k + 1)) {
+						return { k + 1, 4 * square(k) + 5 * k + 1 - n };
+					}
+					else if (2 * (k + 1)*(2*k + 1) < n && n <= 4 * square(k + 1)) {
+						return { 4 * square(k) + 7 * k + 3 - n, -k - 1 };
+					}
+					else if (4 * square(k + 1) < n && n <= 2 * (k + 1)*(2 * k + 3)) {
+						return { -k - 1, n - 4 * square(k) - 9 * k - 5 };
+					}
+					else {
+						assert(false);
+						UNREACHABLE();
+					}
+				};
+
+				auto const pos = coords(n - 1); // Make the grid start at 0
+				return std::abs(pos.x) + std::abs(pos.y);
+			}
+
+			auto part2(input_t input) -> int {
+				auto lane_size = 1;
+				enum class lane_type : { east, north, west, south };
+				auto current_lane = east;
+				auto lane_index = 0;
+
+				auto stream = std::vector<int>{ 1 };
+				while (stream.back() <= input) {
+
+				}
+
+				throw std::runtime_error("Part2 not implemented");
+			}
+
+			auto solve(gsl::span<std::string_view const> args) -> int {
+				if (args.size() < 1) {
+					throw std::runtime_error("Missing part parameter");
+				}
+				auto const part = args[0];
+				args = args.subspan(1);
+
+				auto const in = input(args);
+				if (!in) {
+					std::cerr << in.error() << "\n";
+					return EXIT_FAILURE;
+				}
+
+				if (part == "1") {
+					std::cout << part1(in.value()) << "\n";
+					return EXIT_SUCCESS;
+				}
+				else if (part == "2") {
+					std::cout << part2(in.value()) << "\n";
+					return EXIT_SUCCESS;
+				}
+				else {
+					throw std::runtime_error{ "Parameter \""s.append(part).append("\" was not a valid part (try 1 or 2)") };
+				}
+			}
+		}
 	}
 
 	auto day(gsl::span<std::string_view const> args) -> int {
@@ -263,6 +399,9 @@ namespace kab_advent {
 		}
 		else if (day == "2") {
 			return day2::solve(args);
+		}
+		else if (day == "3") {
+			return day3::solve(args);
 		}
 		else {
 			throw std::runtime_error{ "Parameter \""s.append(day).append("\" was not a valid day (try 1-25)") };
