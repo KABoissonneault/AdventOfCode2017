@@ -346,16 +346,6 @@ namespace kab_advent {
 			}
 
 			auto part2(input_t input) -> int {
-				auto lane_size = 1;
-				enum class lane_type : { east, north, west, south };
-				auto current_lane = east;
-				auto lane_index = 0;
-
-				auto stream = std::vector<int>{ 1 };
-				while (stream.back() <= input) {
-
-				}
-
 				throw std::runtime_error("Part2 not implemented");
 			}
 
