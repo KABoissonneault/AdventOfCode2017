@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cassert>
 #include <cmath>
+#include <set>
 
 #include "algorithm.h"
 #include "error.h"
@@ -346,7 +347,134 @@ namespace kab_advent {
 			}
 
 			auto part2(input_t input) -> int {
+				(void)input;
 				throw std::runtime_error("Part2 not implemented");
+			}
+
+			auto solve(gsl::span<std::string_view const> args) -> int {
+				if (args.size() < 1) {
+					throw std::runtime_error("Missing part parameter");
+				}
+				auto const part = args[0];
+				args = args.subspan(1);
+
+				auto const in = input(args);
+				if (!in) {
+					std::cerr << in.error() << "\n";
+					return EXIT_FAILURE;
+				}
+
+				if (part == "1") {
+					std::cout << part1(in.value()) << "\n";
+					return EXIT_SUCCESS;
+				}
+				else if (part == "2") {
+					std::cout << part2(in.value()) << "\n";
+					return EXIT_SUCCESS;
+				}
+				else {
+					throw std::runtime_error{ "Parameter \""s.append(part).append("\" was not a valid part (try 1 or 2)") };
+				}
+			}
+		}
+
+		namespace day4 {
+			auto input(gsl::span<std::string_view const> args) -> expected<std::string> {
+				if (args.size() == 0) {
+					auto input = std::string();
+					if (!std::getline(std::cin, input)) {
+						return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Could not parse input to an integer"));
+					}
+
+					return input;
+				}
+				else if (args[0] == "--input") {
+					if (args.size() < 2) {
+						return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Missing input after --input"));
+					}
+
+					return std::string(args[1]);
+				}
+				else if (args[0] == "--file") {
+					if (args.size() < 2) {
+						return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Missing filename after --input"));
+					}
+
+					auto const filepath = args[1];
+					auto file = std::ifstream(std::string(filepath));
+					if (!file) {
+						return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "File \""s.append(filepath).append("\" could not be opened")));
+					}
+
+					auto input = std::string();
+					auto line = std::string();
+					while(std::getline(file, line)) {
+						if (!line.empty()) {
+							input.append(line).append("\n");
+						}
+					}
+
+					return input;
+				}
+				else {
+					return make_unexpected(
+						error_info(std::make_error_code(std::errc::invalid_argument), "Invalid parameter \""s.append(args[0]).append("\""))
+					);
+				}
+			}
+
+			auto part1(std::string_view s) -> int {
+				auto validLineCount = 0;
+				for (auto lineEnd = std::find(s.begin(), s.end(), '\n')
+					; !s.empty() && lineEnd != s.end()
+					; s.remove_prefix(std::distance(s.begin(), lineEnd) + 1)
+					, lineEnd = std::find(s.begin(), s.end(), '\n')) {
+					auto line = std::string_view(s.data(), std::distance(s.begin(), lineEnd));
+					auto foundTokens = std::set<std::string_view>();
+					for (auto tokenEnd = std::find(line.begin(), line.end(), ' ')
+						; !line.empty()
+						; (tokenEnd != line.end()) ? line.remove_prefix(std::distance(line.begin(), tokenEnd) + 1) : line = std::string_view()
+						, tokenEnd = std::find(line.begin(), line.end(), ' ')) {
+						auto const token = std::string_view(line.data(), std::distance(line.begin(), tokenEnd));
+						if (foundTokens.count(token) == 1) {
+							break;
+						}
+						foundTokens.insert(token);
+					}
+					if (line.empty()) {
+						++validLineCount;
+					}
+				}
+
+				return validLineCount;
+			}
+
+			auto part2(std::string_view s) -> int {
+				auto validLineCount = 0;
+				for (auto lineEnd = std::find(s.begin(), s.end(), '\n')
+					; !s.empty() && lineEnd != s.end()
+					; s.remove_prefix(std::distance(s.begin(), lineEnd) + 1)
+					, lineEnd = std::find(s.begin(), s.end(), '\n')) {
+					auto line = std::string_view(s.data(), std::distance(s.begin(), lineEnd));
+					auto foundTokens = std::vector<std::string_view>();
+					for (auto tokenEnd = std::find(line.begin(), line.end(), ' ')
+						; !line.empty()
+						; (tokenEnd != line.end()) ? line.remove_prefix(std::distance(line.begin(), tokenEnd) + 1) : line = std::string_view()
+						, tokenEnd = std::find(line.begin(), line.end(), ' ')) {
+						auto const token = std::string_view(line.data(), std::distance(line.begin(), tokenEnd));
+						if (std::any_of(foundTokens.begin(), foundTokens.end(), [token](std::string_view const foundToken) {
+							return std::is_permutation(foundToken.begin(), foundToken.end(), token.begin(), token.end());
+						})) {
+							break;
+						}
+						foundTokens.push_back(token);
+					}
+					if (line.empty()) {
+						++validLineCount;
+					}
+				}
+
+				return validLineCount;
 			}
 
 			auto solve(gsl::span<std::string_view const> args) -> int {
@@ -392,6 +520,9 @@ namespace kab_advent {
 		}
 		else if (day == "3") {
 			return day3::solve(args);
+		}
+		else if (day == "4") {
+			return day4::solve(args);
 		}
 		else {
 			throw std::runtime_error{ "Parameter \""s.append(day).append("\" was not a valid day (try 1-25)") };

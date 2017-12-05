@@ -42,4 +42,5 @@ namespace kab_advent {
 	template<typename E>
 	using unexpected = tl::unexpected<E>;
 	using tl::unexpect;
+	using tl::make_unexpected;
 }
