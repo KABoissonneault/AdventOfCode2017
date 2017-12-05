@@ -1664,8 +1664,8 @@ template <class Exp, class F,
                                               *std::declval<Exp>())),
           detail::enable_if_t<!std::is_void<Ret>::value> * = nullptr>
 
-constexpr auto map_impl(Exp &&exp, F &&f) -> ret_t<Exp, Ret> {
-  using result = ret_t<Exp, Ret>;
+constexpr auto map_impl(Exp &&exp, F &&f) -> ret_t<Exp, typename std::decay<Ret>::type> {
+  using result = ret_t<Exp, typename std::decay<Ret>::type>;
 
   return exp.has_value() ? result(detail::invoke(std::forward<F>(f),
                                                  *std::forward<Exp>(exp)))
