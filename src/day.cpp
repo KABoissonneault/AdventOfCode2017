@@ -503,6 +503,126 @@ namespace kab_advent {
 				}
 			}
 		}
+
+		namespace day5 {
+			auto input_impl( std::string_view arg ) -> expected<std::vector<int>> {
+				auto input = std::vector<int>();
+				while ( auto const convert_result = to_int( arg ) ) {
+					auto const& convert_value = convert_result.value();
+					input.push_back( convert_value.data );
+					arg = arg.substr( std::distance( arg.data(), convert_value.conversion_end ) );
+				}
+				return input;
+			}
+
+			auto input( gsl::span<std::string_view const> args ) -> expected<std::vector<int>> {
+				if ( args.size() == 0 ) {
+					auto line = std::string();
+					if ( !std::getline( std::cin, line ) ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Could not parse input to an integer" ) );
+					}				
+
+					return input_impl(line);
+				} else if ( args[0] == "--input" ) {
+					if ( args.size() < 2 ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Missing input after --input" ) );
+					}
+
+					return input_impl( args[1] );
+				} else if ( args[0] == "--file" ) {
+					if ( args.size() < 2 ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Missing filename after --input" ) );
+					}
+
+					auto const filepath = args[1];
+					auto file = std::ifstream( std::string( filepath ) );
+					if ( !file ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "File \""s.append( filepath ).append( "\" could not be opened" ) ) );
+					}
+
+					auto input = std::string();
+					auto line = std::string();
+					while ( std::getline( file, line ) ) {
+						if ( !line.empty() ) {
+							input.append( line ).append( "\n" );
+						}
+					}
+
+					return input_impl(input);
+				} else {
+					return make_unexpected(
+						error_info( std::make_error_code( std::errc::invalid_argument ), "Invalid parameter \""s.append( args[0] ).append( "\"" ) )
+					);
+				}
+			}
+
+			auto part1( gsl::span<int const> input ) -> int {
+				auto maze = std::vector<int>( input.begin(), input.end() );
+				auto maze_position = maze.begin();
+				auto step_count = 0;
+				while ( maze_position != maze.end() ) {
+					auto & current_value = *maze_position;
+					auto const distance_from_end = std::distance( maze_position, maze.end() );
+					++step_count;
+					if ( current_value >= distance_from_end ) {
+						maze_position = maze.end();
+						continue;
+					}
+
+					maze_position += current_value;
+					++current_value;
+				}
+				return step_count;
+			}
+
+			auto part2( gsl::span<int const> input ) -> int {
+				auto maze = std::vector<int>( input.begin(), input.end() );
+				auto maze_position = maze.begin();
+				auto step_count = 0;
+				while ( maze_position != maze.end() ) {
+					auto & current_value = *maze_position;
+					auto const distance_from_end = std::distance( maze_position, maze.end() );
+					++step_count;
+					if ( current_value >= distance_from_end ) {
+						maze_position = maze.end();
+						continue;
+					}
+
+					maze_position += current_value;
+					if ( current_value >= 3 ) {
+						--current_value;
+					} else {
+						++current_value;
+					}
+					
+				}
+				return step_count;
+			}
+
+			auto solve( gsl::span<std::string_view const> args ) -> int {
+				if ( args.size() < 1 ) {
+					throw std::runtime_error( "Missing part parameter" );
+				}
+				auto const part = args[0];
+				args = args.subspan( 1 );
+
+				auto const in = input( args );
+				if ( !in ) {
+					std::cerr << in.error() << "\n";
+					return EXIT_FAILURE;
+				}
+
+				if ( part == "1" ) {
+					std::cout << part1( in.value() ) << "\n";
+					return EXIT_SUCCESS;
+				} else if ( part == "2" ) {
+					std::cout << part2( in.value() ) << "\n";
+					return EXIT_SUCCESS;
+				} else {
+					throw std::runtime_error { "Parameter \""s.append( part ).append( "\" was not a valid part (try 1 or 2)" ) };
+				}
+			}
+		}
 	}
 
 	auto day(gsl::span<std::string_view const> args) -> int {
@@ -523,6 +643,8 @@ namespace kab_advent {
 		}
 		else if (day == "4") {
 			return day4::solve(args);
+		} else if ( day == "5" ) {
+			return day5::solve(args);
 		}
 		else {
 			throw std::runtime_error{ "Parameter \""s.append(day).append("\" was not a valid day (try 1-25)") };
