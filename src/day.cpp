@@ -132,7 +132,7 @@ namespace kab_advent {
 						if (!token_value) {
 							return expected<input_t>(unexpect, token_value.error());
 						}
-						row.push_back(token_value.value());
+						row.push_back(token_value.value().data);
 						arg = arg.substr(token_size + 1);
 					}
 					else if (*itSeparator == '\n') {
@@ -141,7 +141,7 @@ namespace kab_advent {
 						if (!token_value) {
 							return expected<input_t>(unexpect, token_value.error());
 						}
-						row.push_back(token_value.value());
+						row.push_back(token_value.value().data);
 						input.push_back(std::move(row));
 						row.clear();
 						arg = arg.substr(token_size + 1);
@@ -269,7 +269,7 @@ namespace kab_advent {
 							error_info(std::make_error_code(std::errc::invalid_argument), "Missing input after --input") };
 					}
 					
-					return to_int(args[1]);
+					return to_int(args[1]).map(&conversion_result<int>::data);
 				}
 				else if (args[0] == "--file") {
 					if (args.size() < 2) {
