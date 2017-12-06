@@ -623,6 +623,185 @@ namespace kab_advent {
 				}
 			}
 		}
+
+		namespace day6 {
+			auto input_impl( std::string_view arg ) -> expected<std::vector<int>> {
+				auto input = std::vector<int>();
+				while ( auto const convert_result = to_int( arg ) ) {
+					auto const& convert_value = convert_result.value();
+					input.push_back( convert_value.data );
+					arg = arg.substr( std::distance( arg.data(), convert_value.conversion_end ) );
+				}
+				return input;
+			}
+
+			auto input( gsl::span< std::string_view const > args ) -> expected<std::vector<int>> {
+				if ( args.size() == 0 ) {
+					auto line = std::string();
+					if ( !std::getline( std::cin, line ) ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Could not parse input to an integer" ) );
+					}
+
+					return input_impl( line );
+				} else if ( args[0] == "--input" ) {
+					if ( args.size() < 2 ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Missing input after --input" ) );
+					}
+
+					return input_impl( args[1] );
+				} else if ( args[0] == "--file" ) {
+					if ( args.size() < 2 ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Missing filename after --input" ) );
+					}
+
+					auto const filepath = args[1];
+					auto file = std::ifstream( std::string( filepath ) );
+					if ( !file ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "File \""s.append( filepath ).append( "\" could not be opened" ) ) );
+					}
+
+					auto input = std::string();
+					auto line = std::string();
+					while ( std::getline( file, line ) ) {
+						if ( !line.empty() ) {
+							input.append( line ).append( "\n" );
+						}
+					}
+
+					return input_impl( input );
+				} else {
+					return make_unexpected(
+						error_info( std::make_error_code( std::errc::invalid_argument ), "Invalid parameter \""s.append( args[0] ).append( "\"" ) )
+					);
+				}
+			}
+
+			struct redistribution_sentinel {
+
+			};
+
+			class redistribution_iterator {
+			public:
+				using value_type = std::vector<int>::value_type;
+				using difference_type = std::vector<int>::difference_type;
+				using reference = std::vector<int>::reference;
+				using pointer = std::vector<int>::pointer;
+				using iterator_category = std::forward_iterator_tag;
+
+				redistribution_iterator( std::vector<int> & vec, std::vector<int>::iterator first_bank, int redistribution_count )
+					: vec( &vec )
+					, current_element( first_bank )
+					, redistribution_count( redistribution_count ) {
+					assert( redistribution_count >= 0 );
+				}
+
+				auto operator*() const -> reference {
+					return *current_element;
+				}
+
+				auto operator++() -> redistribution_iterator & {
+					++current_element;
+					if ( current_element == vec->end() ) {
+						current_element = vec->begin();
+					}
+					--redistribution_count;
+					return *this;
+				}
+
+				auto operator!=( redistribution_sentinel ) const {
+					return redistribution_count != 0;
+				}
+
+				auto begin() const noexcept -> redistribution_iterator {
+					return *this;
+				}
+
+				auto end() const noexcept -> redistribution_sentinel {
+					return {};
+				}
+
+			private:
+				std::vector<int>* vec;
+				std::vector<int>::iterator current_element;
+				int redistribution_count;
+			};
+
+			auto part1( gsl::span<int const> input ) -> int {
+				auto banks = std::vector<int>( input.begin(), input.end() );
+				auto states = std::vector<std::vector<int>>();
+				auto const has_state = [&states] ( std::vector<int> const& expected_state ) {
+					return std::find( states.begin(), states.end(), expected_state ) != states.end();
+				};
+
+				auto cycle_count = 0;
+				while ( !has_state( banks ) ) {
+					states.push_back( banks );
+					auto const max_bank = std::max_element( banks.begin(), banks.end() );
+					auto const redistribution_count = *max_bank;
+					*max_bank = 0;
+					auto const next_bank = ( max_bank + 1 != banks.end() ) ? max_bank + 1 : banks.begin();
+					auto redistribution = redistribution_iterator( banks, next_bank, redistribution_count );
+					for ( int & element : redistribution ) {
+						++element;
+					}
+					++cycle_count;
+				}
+
+				return cycle_count;
+			}
+
+			auto part2( gsl::span<int const> input ) -> int {
+				auto banks = std::vector<int>( input.begin(), input.end() );
+				auto states = std::vector<std::pair<std::vector<int>, int>>();
+				enum { state_index, cycle_index };
+				auto const find_state = [&states] ( std::vector<int> const& expected_state ) {
+					return std::find_if( states.begin(), states.end(), [expected_state]( auto const& current_state ) -> bool {
+						return std::get<state_index>( current_state ) == expected_state;
+					});
+				};
+
+				auto cycle_count = 0;
+				auto found_state = decltype( states )::iterator();
+				while ( ( found_state = find_state(banks) ) == states.end() ) {
+					states.emplace_back( banks, cycle_count );
+					auto const max_bank = std::max_element( banks.begin(), banks.end() );
+					auto const redistribution_count = *max_bank;
+					*max_bank = 0;
+					auto const next_bank = ( max_bank + 1 != banks.end() ) ? max_bank + 1 : banks.begin();
+					auto redistribution = redistribution_iterator( banks, next_bank, redistribution_count );
+					for ( int & element : redistribution ) {
+						++element;
+					}
+					++cycle_count;
+				}
+
+				return cycle_count - std::get<cycle_index>(*found_state);
+			}
+
+			auto solve( gsl::span<std::string_view const> args ) -> int {
+				if ( args.size() < 1 ) {
+					throw std::runtime_error( "Missing part parameter" );
+				}
+				auto const part = args[0];
+				args = args.subspan( 1 );
+
+				auto const in = input( args );
+				if ( !in ) {
+					std::cerr << in.error() << "\n";
+					return EXIT_FAILURE;
+				}
+
+				if ( part == "1" ) {
+					std::cout << part1( in.value() ) << "\n";
+					return EXIT_SUCCESS;
+				} else if ( part == "2" ) {
+					std::cout << part2( in.value() ) << "\n";
+					return EXIT_SUCCESS;
+				} else {
+					throw std::runtime_error { "Parameter \""s.append( part ).append( "\" was not a valid part (try 1 or 2)" ) };
+				}
+			}
+		}
 	}
 
 	auto day(gsl::span<std::string_view const> args) -> int {
@@ -645,6 +824,8 @@ namespace kab_advent {
 			return day4::solve(args);
 		} else if ( day == "5" ) {
 			return day5::solve(args);
+		} else if ( day == "6" ) {
+			return day6::solve( args );
 		}
 		else {
 			throw std::runtime_error{ "Parameter \""s.append(day).append("\" was not a valid day (try 1-25)") };
