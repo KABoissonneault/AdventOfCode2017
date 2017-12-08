@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cmath>
 #include <set>
+#include <regex>
 
 #include "algorithm.h"
 #include "error.h"
@@ -802,6 +803,122 @@ namespace kab_advent {
 				}
 			}
 		}
+
+        namespace day7 {
+            struct tower {
+                std::string name;
+                int weight;
+                std::vector<std::string> dependencies;
+            };
+
+            using input_t = std::vector<tower>;
+
+            auto to_tower(std::string_view line) -> expected<tower> {
+                std::cmatch m;
+                if (!std::regex_match(line.data(), line.data() + line.size(), m, std::regex(R"(([a-z]+) \(([0-9]+)\)( -> (.*))?)"))) {
+                    return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "\""s.append(line).append("\" did not match the expected format")));
+                }
+                tower t;
+                t.name = m[1];
+                t.weight = std::stoi(m[2]);
+                if (m[4].matched) {
+                    auto const child_list = m[4].str();
+                    auto const child_pattern = std::regex(R"(([[:lower:]]+)(, )?)");
+                    auto child_iterator = std::sregex_iterator(child_list.begin(), child_list.end(), child_pattern);
+                    auto const child_sentinel = std::sregex_iterator();
+                    std::transform(child_iterator, child_sentinel, std::back_inserter(t.dependencies), [] (std::smatch const& s) {
+                        return s[1];
+                    });
+                }
+                return t;
+            }
+
+            auto input(gsl::span<std::string_view const> args) -> expected<input_t> {
+                if (args.size() == 0) {
+                    return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Stdin input not supported for this day"));
+                }
+                else if (args[0] == "--input") {
+                    return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "--input not supported for this day"));
+                }
+                else if (args[0] == "--file") {
+                    if (args.size() < 2) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Missing filename after --input"));
+                    }
+
+                    auto const filepath = args[1];
+                    auto file = std::ifstream(std::string(filepath));
+                    if (!file) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "File \""s.append(filepath).append("\" could not be opened")));
+                    }
+
+                    auto input = input_t();
+                    auto line = std::string();
+                    while (std::getline(file, line)) {
+                        if (!line.empty()) {
+                            auto const tower = to_tower(line);
+                            if (!tower) {
+                                return make_unexpected(tower.error());
+                            }
+                            input.push_back(std::move(tower).value());
+                        }
+                    }
+
+                    return input;
+                }
+                else {
+                    return make_unexpected(
+                        error_info(std::make_error_code(std::errc::invalid_argument), "Invalid parameter \""s.append(args[0]).append("\""))
+                    );
+                }
+            }
+            
+            auto part1(input_t input) -> std::string {
+                auto const find_top = [&input]
+                    (std::string_view name) {
+                    return std::find_if(input.begin(), input.end(), [name](tower const& t) { return std::find(t.dependencies.begin(), t.dependencies.end(), name) != t.dependencies.end(); });
+                };
+
+                auto found_bottom_tower = std::find_if(input.begin(), input.end(), [](tower const& t) { return t.dependencies.size() > 0; });
+                assert(found_bottom_tower != input.end());
+                while(true) {
+                    auto const& current_tower = *found_bottom_tower;
+                    found_bottom_tower = find_top(current_tower.name);
+                    if (found_bottom_tower == input.end()) {
+                        return current_tower.name;
+                    }
+                }
+            }
+
+            auto part2(input_t) -> int {
+                throw std::runtime_error("Not implemented");
+            }
+
+            auto solve(gsl::span<std::string_view const> args) -> int {
+                if (args.size() < 1) {
+                    throw std::runtime_error("Missing part parameter");
+                }
+                auto const part = args[0];
+                args = args.subspan(1);
+
+                auto const in = input(args);
+                if (!in) {
+                    std::cerr << in.error() << "\n";
+                    return EXIT_FAILURE;
+                }
+
+                if (part == "1") {
+                    std::cout << part1(std::move(in).value()) << "\n";
+                    return EXIT_SUCCESS;
+                }
+                else if (part == "2") {
+                    std::cout << part2(std::move(in).value()) << "\n";
+                    return EXIT_SUCCESS;
+                }
+                else {
+                    throw std::runtime_error{ "Parameter \""s.append(part).append("\" was not a valid part (try 1 or 2)") };
+                }
+            }
+        }
 	}
 
 	auto day(gsl::span<std::string_view const> args) -> int {
@@ -827,6 +944,9 @@ namespace kab_advent {
 		} else if ( day == "6" ) {
 			return day6::solve( args );
 		}
+        else if (day == "7") {
+            return day7::solve(args);
+        }
 		else {
 			throw std::runtime_error{ "Parameter \""s.append(day).append("\" was not a valid day (try 1-25)") };
 		}
