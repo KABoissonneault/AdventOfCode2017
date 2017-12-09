@@ -12,6 +12,7 @@
 #include "algorithm.h"
 #include "error.h"
 #include "conversion.h"
+#include "parser.h"
 #include <fstream>
 
 #if defined(_MSC_VER)
@@ -923,12 +924,6 @@ namespace kab_advent {
 
             using input_t = std::vector<instruction>;
 
-            template<typename T>
-            struct parsed_value {
-                T value;
-                std::string_view rest_instruction;
-            };
-
             auto find_end_token(std::string_view line) -> std::string_view::iterator {
                 return std::find_if(line.begin(), line.end(), [] (char const c) { return std::isspace(c); });
             }
@@ -1120,8 +1115,239 @@ namespace kab_advent {
             }
 
             auto part2(input_t in) -> int {
-                (void)in;
-                throw std::runtime_error("Not implemented");
+                auto register_state = std::map<std::string_view, int>();
+                auto max_value = INT_MIN;
+
+                for(instruction const& instruction : in) {
+                    auto const& condition = instruction.expr;
+                    if(operator_compare(condition.comp, register_state[condition.register_name], condition.value)) {
+                        auto & state = register_state[instruction.register_name];
+                        if(instruction.op == arithmetic_operator::inc) {
+                            state += instruction.operand;
+                        } else if(instruction.op == arithmetic_operator::dec) {
+                            state -= instruction.operand;
+                        } else {
+                            assert(false && "Invalid operator");
+                            UNREACHABLE();
+                        }
+
+                        max_value = std::max(max_value, state);
+                    }
+                }
+
+                return max_value;
+            }
+
+            auto solve(gsl::span<std::string_view const> args) -> int {
+                if(args.size() < 1) {
+                    throw std::runtime_error("Missing part parameter");
+                }
+                auto const part = args[0];
+                args = args.subspan(1);
+
+                auto const in = input(args);
+                if(!in) {
+                    std::cerr << in.error() << "\n";
+                    return EXIT_FAILURE;
+                }
+
+                if(part == "1") {
+                    std::cout << part1(std::move(in).value()) << "\n";
+                    return EXIT_SUCCESS;
+                } else if(part == "2") {
+                    std::cout << part2(std::move(in).value()) << "\n";
+                    return EXIT_SUCCESS;
+                } else {
+                    throw std::runtime_error{"Parameter \""s.append(part).append("\" was not a valid part (try 1 or 2)")};
+                }
+            }
+        }
+
+        namespace day9 {
+            struct garbage {
+                int count;
+            };
+
+            struct group {
+                std::vector<std::variant<group, garbage>> things;
+            };
+
+            using input_t = group;
+
+            auto peek_group_begin(std::string_view line) -> bool {
+                return !line.empty() && line.front() == '{';
+            }
+
+            auto peek_group_end(std::string_view line) -> bool {
+                return !line.empty() && line.front() == '}';
+            }
+
+            auto peek_garbage_begin(std::string_view line) -> bool {
+                return !line.empty() && line.front() == '<';
+            }
+
+            auto parse_group(std::string_view line) -> expected<parsed_value<group>>;
+
+            auto parse_garbage(std::string_view line) -> expected<parsed_value<garbage>> {
+                if(!peek_garbage_begin(line)) {
+                    return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Garbage did not start with '<'"));
+                }
+                line.remove_prefix(1);
+
+                int count = 0;
+                for(; !line.empty(); line.remove_prefix(1)) {
+                    auto const character = line.front();
+                    switch(character) {
+                        case '!':
+                            line.remove_prefix(1);
+                            if(line.empty()) {
+                                return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Garbage did not start end with '>'"));
+                            }
+                            break;
+                        case '>':
+                        {
+                            line.remove_prefix(1);
+                            return parsed_value<garbage>{ {count}, line };
+                        }
+                        default:
+                            ++count;
+                            break;
+                    }   
+                }
+
+                return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Garbage did not start end with '>'"));
+            }
+
+            auto parse_thing(std::string_view line) -> expected<parsed_value<std::variant<group, garbage>>> {
+                auto const to_parsed_value = [] (auto&& value) -> parsed_value<std::variant<group, garbage>> {
+                    auto const rest_instruction = value.rest_instruction;
+                    return parsed_value<std::variant<group, garbage>>{ std::variant<group, garbage>(std::forward<decltype(value)>(value).value), rest_instruction };
+                };
+
+                if(peek_group_begin(line)) {
+                    return parse_group(line).map(to_parsed_value);
+                } else if(peek_garbage_begin(line)) {
+                    return parse_garbage(line).map(to_parsed_value);
+                } else {
+                    if(line.empty()) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "No character found while parsing thing" ));
+                    } else {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Character '"s.append(line.substr(1, 1)).append("' not a valid thing start")));
+                    }
+                }
+            }
+
+            auto peek_group_delimiter(std::string_view line) -> bool {
+                return !line.empty() && line.front() == ',';
+            }
+
+            auto parse_group(std::string_view line) -> expected<parsed_value<group>> {
+                if(!peek_group_begin(line)) {
+                    return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Group did not start with '{'"));
+                }
+                line.remove_prefix(1);
+
+                if(peek_group_end(line)) {
+                    line.remove_prefix(1);
+                    return parsed_value<group>{ group{}, line };
+                }
+
+                group g;
+                bool first_token = true;
+                while(first_token || peek_group_delimiter(line))
+                {
+                    if(!std::exchange(first_token, false)) {
+                        line.remove_prefix(1);
+                    }
+
+                    auto thing_result = parse_thing(line);
+                    if(!thing_result) {
+                        return make_unexpected(thing_result.error());
+                    }
+                    
+                    line = thing_result.value().rest_instruction;
+                    g.things.push_back(std::move(thing_result.value().value));
+                }
+
+                if(!peek_group_end(line)) {
+                    return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Group did not end with '}'"));
+                }
+                line.remove_prefix(1);
+
+                return parsed_value<group>{ g, line };
+            }
+
+            auto input(gsl::span<std::string_view const> args) -> expected<input_t> {
+                if(args.size() == 0) {
+                    auto line = std::string();
+                    if(!std::getline(std::cin, line)) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Could not parse input to an integer"));
+                    }
+
+                    return parse_group(line).map(&parsed_value<group>::value);
+                } else if(args[0] == "--input") {
+                    if(args.size() < 2) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Missing input after --input"));
+                    }
+
+                    return parse_group(args[1]).map(&parsed_value<group>::value);
+                } else if(args[0] == "--file") {
+                    if(args.size() < 2) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Missing filename after --input"));
+                    }
+
+                    auto const filepath = args[1];
+                    auto file = std::ifstream(std::string(filepath));
+                    if(!file) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "File \""s.append(filepath).append("\" could not be opened")));
+                    }
+
+                    auto input = std::string();
+                    auto line = std::string();
+                    while(std::getline(file, line)) {
+                        if(!line.empty()) {
+                            input.append(line).append("\n");
+                        }
+                    }
+
+                    return parse_group(input).map(&parsed_value<group>::value);
+                } else {
+                    return make_unexpected(
+                        error_info(std::make_error_code(std::errc::invalid_argument), "Invalid parameter \""s.append(args[0]).append("\""))
+                    );
+                }
+            }
+
+            auto get_score(group const& g, int score_depth) -> int {
+                auto total_score = score_depth;
+                for(auto const& thing : g.things) {
+                    if(std::holds_alternative<group>(thing)) {
+                        total_score += get_score(std::get<group>(thing), score_depth + 1);
+                    }
+                }
+
+                return total_score;
+            }
+
+            auto part1(input_t in) -> int {
+                return get_score(in, 1);
+            }
+
+            auto get_garbage(group const& g) -> int {
+                auto total_garbage = 0;
+                for(auto const& thing : g.things) {
+                    if(std::holds_alternative<group>(thing)) {
+                        total_garbage += get_garbage(std::get<group>(thing));
+                    } else {
+                        total_garbage += std::get<garbage>(thing).count;
+                    }
+                }
+
+                return total_garbage;
+            }
+
+            auto part2(input_t in) -> int {
+                return get_garbage(in);
             }
 
             auto solve(gsl::span<std::string_view const> args) -> int {
@@ -1173,6 +1399,8 @@ namespace kab_advent {
             return day7::solve(args);
         } else if(day == "8") {
             return day8::solve(args);
+        } else if(day == "9") {
+            return day9::solve(args);
         } else {
             throw std::runtime_error{"Parameter \""s.append(day).append("\" was not a valid day (try 1-25)")};
         }
