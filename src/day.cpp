@@ -1374,6 +1374,171 @@ namespace kab_advent {
                 }
             }
         }
+
+        namespace day10 {
+            using input_t = std::string;
+
+            auto input(gsl::span<std::string_view const> args) -> expected<input_t> {
+                if(args.size() == 0) {
+                    auto line = std::string();
+                    if(!std::getline(std::cin, line)) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Could not parse input to a string"));
+                    }
+
+                    return line;
+                } else if(args[0] == "--input") {
+                    if(args.size() < 2) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Missing input after --input"));
+                    }
+
+                    return std::string(args[1]);
+                } else if(args[0] == "--file") {
+                    if(args.size() < 2) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Missing filename after --input"));
+                    }
+
+                    auto const filepath = args[1];
+                    auto file = std::ifstream(std::string(filepath));
+                    if(!file) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "File \""s.append(filepath).append("\" could not be opened")));
+                    }
+
+                    auto input = std::string();
+                    auto line = std::string();
+                    while(std::getline(file, line)) {
+                        if(!line.empty()) {
+                            input.append(line).append("\n");
+                        }
+                    }
+
+                    return input;
+                } else {
+                    return make_unexpected(
+                        error_info(std::make_error_code(std::errc::invalid_argument), "Invalid parameter \""s.append(args[0]).append("\""))
+                    );
+                }
+            }
+
+            auto peek_delimiter(std::string_view line) -> bool {
+                return !line.empty() && line.front() == ',';
+            }
+
+            auto strip_delimiter(std::string_view & line) -> bool {
+                if(peek_delimiter(line)) {
+                    line.remove_prefix(1);
+                    return true;
+                }
+                return false;
+            }
+
+            auto parse_integer(std::string_view line) -> expected<parsed_value<int>> {
+                return to_int(line).map([line] (conversion_result<int> c) -> parsed_value<int> {
+                    return parsed_value<int>{c.data, line.substr(std::distance(line.data(), c.conversion_end))};
+                });
+            }
+
+            auto parse_integer_list(std::string_view line) -> expected<std::vector<int>> {
+                auto input = std::vector<int>();
+                do {
+                    auto integer_result = parse_integer(line);
+                    if(!integer_result) {
+                        return make_unexpected(integer_result.error());
+                    }
+
+                    input.push_back(integer_result.value().value);
+                    line = integer_result.value().rest_instruction;
+                } while(strip_delimiter(line));
+                return input;
+            }
+
+            template<typename ListIt, typename SkipListT>
+            auto skip_round(ListIt & circular_it, SkipListT const& skip_list, int & skip_size) {
+                for(auto const skip : skip_list) {
+                    auto const twist_end = circular_it + skip;
+                    std::reverse(circular_it, twist_end);
+                    circular_it += skip + skip_size++;
+                }
+            }
+
+            auto part1(input_t input) -> int {
+                auto parse_result = parse_integer_list(input);
+                if(!parse_result) {
+                    throw std::system_error(parse_result.error().get_error_code(), std::string(parse_result.error().get_error_message()));
+                }
+
+                auto const skip_list = parse_result.value();
+
+                auto list = std::vector<int>(256);
+                std::iota(list.begin(), list.end(), 0);
+
+                auto circular_list = make_circular_view(list);
+                auto circular_it = circular_list.begin();
+                auto skip_size = 0;
+
+                skip_round(circular_it, skip_list, skip_size);
+
+                return list[0] * list[1];
+            }
+
+            auto part2(input_t input) -> std::string {
+                auto skip_list = std::vector<int>();
+                std::transform(input.begin(), input.end(), std::back_inserter(skip_list), [] (char const c) -> int {
+                    return c;
+                });
+                auto const end_sequence = {17, 31, 73, 47, 23};
+                skip_list.insert(skip_list.end(), end_sequence.begin(), end_sequence.end());
+
+                auto list = std::vector<int>(256);
+                std::iota(list.begin(), list.end(), 0);
+
+                auto circular_list = make_circular_view(list);
+                auto circular_it = circular_list.begin();
+                auto skip_size = 0;
+
+                for(int i = 0; i < 64; ++i) {
+                    skip_round(circular_it, skip_list, skip_size);
+                }
+                
+                auto dense_list = std::vector<int>(16);
+                for(int i = 0; i < 16; ++i) {
+                    auto const list_begin = list.begin() + i * 16;
+                    dense_list[i] = std::accumulate(list_begin, list_begin + 16, 0, [] (auto const a, auto const b) -> int { return a ^ b; });
+                }
+
+                auto output = std::string();
+                for(auto const value : dense_list) {
+                    auto const current_size = output.size();
+                    output.resize(current_size + 2);
+                    sprintf(output.data() + current_size, "%x", value);
+                }
+
+                return output;
+            }
+
+            auto solve(gsl::span<std::string_view const> args) -> int {
+                if(args.size() < 1) {
+                    throw std::runtime_error("Missing part parameter");
+                }
+                auto const part = args[0];
+                args = args.subspan(1);
+
+                auto const in = input(args);
+                if(!in) {
+                    std::cerr << in.error() << "\n";
+                    return EXIT_FAILURE;
+                }
+
+                if(part == "1") {
+                    std::cout << part1(std::move(in).value()) << "\n";
+                    return EXIT_SUCCESS;
+                } else if(part == "2") {
+                    std::cout << part2(std::move(in).value()) << "\n";
+                    return EXIT_SUCCESS;
+                } else {
+                    throw std::runtime_error{"Parameter \""s.append(part).append("\" was not a valid part (try 1 or 2)")};
+                }
+            }
+        }
     }
 
     auto day(gsl::span<std::string_view const> args) -> int {
@@ -1401,6 +1566,8 @@ namespace kab_advent {
             return day8::solve(args);
         } else if(day == "9") {
             return day9::solve(args);
+        } else if(day == "10") {
+            return day10::solve(args);
         } else {
             throw std::runtime_error{"Parameter \""s.append(day).append("\" was not a valid day (try 1-25)")};
         }
