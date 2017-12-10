@@ -1509,7 +1509,7 @@ namespace kab_advent {
                 for(auto const value : dense_list) {
                     auto const current_size = output.size();
                     output.resize(current_size + 2);
-                    sprintf(output.data() + current_size, "%x", value);
+                    sprintf(output.data() + current_size, "%02x", value);
                 }
 
                 return output;
