@@ -1539,6 +1539,165 @@ namespace kab_advent {
                 }
             }
         }
+
+		namespace day11 {
+			enum class hex_direction { north, north_east, south_east, south, south_west, north_west };
+
+			using input_t = std::vector<hex_direction>;
+
+			auto peek_delimiter( std::string_view line ) -> bool {
+				return !line.empty() && line.front() == ',';
+			}
+
+			auto consume_delimiter( std::string_view & line ) -> bool {
+				if ( peek_delimiter( line ) ) {
+					line.remove_prefix( 1 );
+					return true;
+				} else {
+					return false;
+				}
+			}
+
+			auto parse_direction( std::string_view line ) -> expected<parsed_value<hex_direction>> {
+				auto const start_with = [] ( std::string_view line, std::string_view value ) -> bool {
+					return line.compare( 0, value.size(), value ) == 0;
+				};
+				if ( start_with( line, "ne" ) ) {
+					return parsed_value<hex_direction>{ hex_direction::north_east, line.substr( 2 )};
+				} else if ( start_with( line, "se" ) ) {
+					return parsed_value<hex_direction>{ hex_direction::south_east, line.substr( 2 )};
+				} else if ( start_with( line, "sw" ) ) {
+					return parsed_value<hex_direction>{ hex_direction::south_west, line.substr( 2 )};
+				} else if ( start_with( line, "nw" ) ) {
+					return parsed_value<hex_direction>{ hex_direction::north_west, line.substr( 2 )};
+				} else if ( start_with( line, "n" ) ) {
+					return parsed_value<hex_direction>{ hex_direction::north, line.substr( 1 )};
+				} else if ( start_with( line, "s" ) ) {
+					return parsed_value<hex_direction>{ hex_direction::south, line.substr( 1 )};
+				} else {
+					return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Could not parse value to a direction" ) );
+				}
+			}
+
+			auto parse_direction_sequence(std::string_view line) -> expected<input_t> {
+				auto input = input_t();
+				do {
+					auto const direction_result = parse_direction( line );
+					if ( !direction_result ) {
+						return make_unexpected( direction_result.error() );
+					}
+					input.push_back( direction_result.value().value );
+					line = direction_result.value().rest_instruction;
+				} while ( consume_delimiter( line ) );
+				return input;
+			}
+
+			auto input(gsl::span<std::string_view const> args) -> expected<input_t> {
+				if ( args.size() == 0 ) {
+					auto line = std::string();
+					if ( !std::getline( std::cin, line ) ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Could not parse input to a string" ) );
+					}
+
+					return parse_direction_sequence(line);
+				} else if ( args[0] == "--input" ) {
+					if ( args.size() < 2 ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Missing input after --input" ) );
+					}
+
+					return parse_direction_sequence( args[1] );
+				} else if ( args[0] == "--file" ) {
+					if ( args.size() < 2 ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Missing filename after --input" ) );
+					}
+
+					auto const filepath = args[1];
+					auto file = std::ifstream( std::string( filepath ) );
+					if ( !file ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "File \""s.append( filepath ).append( "\" could not be opened" ) ) );
+					}
+
+					auto input = std::string();
+					auto line = std::string();
+					while ( std::getline( file, line ) ) {
+						if ( !line.empty() ) {
+							input.append( line ).append( "\n" );
+						}
+					}
+
+					return parse_direction_sequence(input);
+				} else {
+					return make_unexpected(
+						error_info( std::make_error_code( std::errc::invalid_argument ), "Invalid parameter \""s.append( args[0] ).append( "\"" ) )
+					);
+				}
+			}
+
+			struct cube_coord3d {
+				int x, y, z;
+
+				constexpr auto operator+( cube_coord3d rhs ) const noexcept -> cube_coord3d {
+					return { x + rhs.x, y + rhs.y, z + rhs.z };
+				}
+			};
+
+			auto hex_distance( cube_coord3d lhs, cube_coord3d rhs ) -> int {
+				return std::max( { std::abs( lhs.x - rhs.x ), std::abs( lhs.y - rhs.y ), std::abs( lhs.z - rhs.z ) } );
+			}
+
+			auto to_cube_coord3d( hex_direction d ) -> cube_coord3d {
+				switch ( d ) {
+				case hex_direction::north: return { 0, 1, -1 };
+				case hex_direction::north_east: return { 1, 0, -1 };
+				case hex_direction::south_east: return { 1, -1, 0 };
+				case hex_direction::south: return { 0, -1, 1 };
+				case hex_direction::south_west: return { -1, 0, 1 };
+				case hex_direction::north_west: return { -1, 1, 0 };
+				}
+				assert( false );
+				UNREACHABLE();
+			}
+			
+			auto part1( input_t in ) -> int {
+				return hex_distance( std::accumulate( in.begin(), in.end(), cube_coord3d { 0, 0, 0 }, [] ( cube_coord3d c, hex_direction d ) -> cube_coord3d {
+					return c + to_cube_coord3d( d );
+				} ), cube_coord3d { 0, 0, 0 } );
+			}
+
+			auto part2( input_t in ) -> int {
+				auto max_distance = 0;
+				std::accumulate( in.begin(), in.end(), cube_coord3d { 0, 0, 0 }, [&max_distance] ( cube_coord3d c, hex_direction d ) -> cube_coord3d {
+					auto const new_distance = c + to_cube_coord3d( d );
+					max_distance = std::max( max_distance, hex_distance( new_distance, cube_coord3d { 0,0,0 } ) );
+					return new_distance;
+				} );
+				return max_distance;
+			}
+
+			auto solve( gsl::span<std::string_view const> args ) {
+				if ( args.size() < 1 ) {
+					throw std::runtime_error( "Missing part parameter" );
+				}
+				auto const part = args[0];
+				args = args.subspan( 1 );
+
+				auto const in = input( args );
+				if ( !in ) {
+					std::cerr << in.error() << "\n";
+					return EXIT_FAILURE;
+				}
+
+				if ( part == "1" ) {
+					std::cout << part1( std::move( in ).value() ) << "\n";
+					return EXIT_SUCCESS;
+				} else if ( part == "2" ) {
+					std::cout << part2( std::move( in ).value() ) << "\n";
+					return EXIT_SUCCESS;
+				} else {
+					throw std::runtime_error { "Parameter \""s.append( part ).append( "\" was not a valid part (try 1 or 2)" ) };
+				}
+			}
+		}
     }
 
     auto day(gsl::span<std::string_view const> args) -> int {
@@ -1568,7 +1727,9 @@ namespace kab_advent {
             return day9::solve(args);
         } else if(day == "10") {
             return day10::solve(args);
-        } else {
+        } else if ( day == "11" ) {
+			return day11::solve( args );
+		} else {
             throw std::runtime_error{"Parameter \""s.append(day).append("\" was not a valid day (try 1-25)")};
         }
     }
