@@ -189,4 +189,20 @@ namespace kab_advent {
     }
 
 #undef KAB_ITERATOR_CATEGORY_REQUIRES
+
+	template<typename PredicateT>
+	auto left_trim( std::string_view s, PredicateT p ) -> std::string_view {
+		while ( !s.empty() && p( s.front() ) ) {
+			s.remove_prefix( 1 );
+		}
+		return s;
+	}
+
+	auto left_trim( std::string_view s ) -> std::string_view {
+		return left_trim( s, [] ( char const c ) -> bool { return std::isspace( c );} );
+	}
+
+	auto begins_with( std::string_view s, std::string_view v ) -> bool {
+		return s.compare( 0, v.size(), v ) == 0;
+	}
 }
