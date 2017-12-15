@@ -13,6 +13,7 @@
 #include "error.h"
 #include "conversion.h"
 #include "parser.h"
+#include "knot_hash.h"
 #include <fstream>
 
 #if defined(_MSC_VER)
@@ -1451,15 +1452,6 @@ namespace kab_advent {
                 return input;
             }
 
-            template<typename ListIt, typename SkipListT>
-            auto skip_round(ListIt & circular_it, SkipListT const& skip_list, int & skip_size) {
-                for(auto const skip : skip_list) {
-                    auto const twist_end = circular_it + skip;
-                    std::reverse(circular_it, twist_end);
-                    circular_it += skip + skip_size++;
-                }
-            }
-
             auto part1(input_t input) -> int {
                 auto parse_result = parse_integer_list(input);
                 if(!parse_result) {
@@ -1481,10 +1473,7 @@ namespace kab_advent {
             }
 
             auto part2(input_t input) -> std::string {
-                auto skip_list = std::vector<int>();
-                std::transform(input.begin(), input.end(), std::back_inserter(skip_list), [] (char const c) -> int {
-                    return c;
-                });
+                auto skip_list = std::vector<int>(input.begin(), input.end());
                 auto const end_sequence = {17, 31, 73, 47, 23};
                 skip_list.insert(skip_list.end(), end_sequence.begin(), end_sequence.end());
 
@@ -1502,7 +1491,7 @@ namespace kab_advent {
                 auto dense_list = std::vector<int>(16);
                 for(int i = 0; i < 16; ++i) {
                     auto const list_begin = list.begin() + i * 16;
-                    dense_list[i] = std::accumulate(list_begin, list_begin + 16, 0, [] (auto const a, auto const b) -> int { return a ^ b; });
+                    dense_list[i] = std::accumulate(list_begin, list_begin + 16, 0, std::bit_xor<>());
                 }
 
                 auto output = std::string();
@@ -1537,6 +1526,34 @@ namespace kab_advent {
                 } else {
                     throw std::runtime_error{"Parameter \""s.append(part).append("\" was not a valid part (try 1 or 2)")};
                 }
+            }
+        }
+
+        namespace day14 {
+            using input_t = std::string;
+
+            auto input(gsl::span<std::string_view const> args) -> expected<input_t> {
+                auto input = std::string();
+                if(args.size() == 0) {
+                    if(!std::getline(std::cin, input)) {
+                        return expected<std::string>{ unexpect,
+                            error_info(std::make_error_code(std::errc::invalid_argument), "Could not read input") };
+                    }
+                } else if(args[0] == "--input") {
+                    if(args.size() < 2) {
+                        return expected<std::string>{ unexpect,
+                            error_info(std::make_error_code(std::errc::invalid_argument), "Missing input after --input") };
+                    }
+                    input = args[1];
+                } else {
+                    return expected<std::string>{ unexpect,
+                        error_info(std::make_error_code(std::errc::invalid_argument), "Invalid parameter \""s.append(args[0]).append("\"")) };
+                }
+                return input;
+            }
+
+            auto solve(gsl::span<std::string_view const> args) -> int {
+
             }
         }
     }
