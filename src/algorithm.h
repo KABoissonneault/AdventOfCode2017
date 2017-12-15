@@ -189,6 +189,67 @@ namespace kab_advent {
         return circular_view<RangeT &>(range);
     }
 
+    template<typename IntegerT>
+    class iota_view {
+    public:
+        iota_view(IntegerT first, IntegerT end)
+            : first(first)
+            , last(end) {
+
+        }
+
+        class iota_iterator {
+        public:
+            using value_type = IntegerT;
+            using difference_type = std::ptrdiff_t;
+            using reference = value_type const&;
+            using pointer = value_type const*;
+            using iterator_category = std::forward_iterator_tag;
+
+
+            iota_iterator(IntegerT value)
+                : value(value) {
+
+            }
+
+            auto operator*() const -> reference {
+                return value;
+            }
+
+            auto operator++() -> iota_iterator & {
+                ++value;
+                return *this;
+            }
+
+            auto operator==(iota_iterator other) const {
+                return value == other.value;
+            }
+            auto operator!=(iota_iterator other) const {
+                return !(*this == other);
+            }
+
+        private:
+            IntegerT value;
+        };
+
+        auto begin() const noexcept -> iota_iterator {
+            return {first};
+        }
+
+        auto end() const noexcept -> iota_iterator {
+            return {last};
+        }
+
+    private:
+        IntegerT first;
+        IntegerT last;
+    };
+
+    template<typename IntegerT>
+    auto make_iota_view(IntegerT start, IntegerT end) -> iota_view<std::decay_t<IntegerT>> {
+        return {start, end};
+    }
+
 #undef KAB_ITERATOR_CATEGORY_REQUIRES
 
 	template<typename PredicateT>
