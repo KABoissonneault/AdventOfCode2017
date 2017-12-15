@@ -1824,13 +1824,13 @@ namespace kab_advent {
 				return s;
 			}
 
-			auto part1( input_t in ) -> int {
+			auto part1( input_t in ) -> std::ptrdiff_t {
 				auto s = make_set( in );
 
 				return std::count_if( in.begin(), in.end(), [&s, zero_root = s.find_root( in[0].id )]( program const& p ) -> bool { return s.find_root( p.id ) == zero_root; } );
 			}
 
-			auto part2( input_t in ) -> int {
+			auto part2( input_t in ) -> size_t {
 				auto s = make_set( in );
 
 				auto group_ids = std::set<int>();
