@@ -24,10 +24,12 @@
     <ClInclude Include="..\..\src\day.h" />
     <ClInclude Include="..\..\src\error.h" />
     <ClInclude Include="..\..\src\expected.hpp" />
+    <ClInclude Include="..\..\src\knot_hash.h" />
     <ClInclude Include="..\..\src\parser.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\day.cpp" />
+    <ClCompile Include="..\..\src\knot_hash.cpp" />
     <ClCompile Include="..\..\src\main.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
