@@ -3,6 +3,7 @@
 #include <vector>
 #include <type_traits>
 #include <iterator>
+#include <cctype>
 
 namespace kab_advent {
 	template<typename RangeT, typename PredicateT, 
@@ -198,11 +199,11 @@ namespace kab_advent {
 		return s;
 	}
 
-	auto left_trim( std::string_view s ) -> std::string_view {
+	inline auto left_trim( std::string_view s ) -> std::string_view {
 		return left_trim( s, [] ( char const c ) -> bool { return std::isspace( c );} );
 	}
 
-	auto begins_with( std::string_view s, std::string_view v ) -> bool {
+	inline auto begins_with( std::string_view s, std::string_view v ) -> bool {
 		return s.compare( 0, v.size(), v ) == 0;
 	}
 }
