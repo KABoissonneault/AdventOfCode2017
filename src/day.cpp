@@ -8,12 +8,15 @@
 #include <regex>
 #include <variant>
 #include <map>
+#include <bitset>
+#include <sstream>
 
 #include "algorithm.h"
 #include "error.h"
 #include "conversion.h"
 #include "parser.h"
 #include "knot_hash.h"
+#include "disjoint_set.h"
 #include <fstream>
 
 #if defined(_MSC_VER)
@@ -1889,8 +1892,52 @@ namespace kab_advent {
                 return input;
             }
 
-            auto solve(gsl::span<std::string_view const> args) -> int {
+            auto bit_count(std::string_view s) -> size_t {
+                std::stringstream ss;
+                std::transform(s.begin(), s.end(), std::ostream_iterator<std::string>(ss), [] (char c) -> char const* {
+                    return hex_char_to_bin(c);
+                });
+                
+                auto bits = std::bitset<128>();
+                ss >> bits;
 
+                return bits.count();
+            }
+
+            auto part1(input_t in) -> int {
+                auto const rows = make_iota_view(0, 128);
+                return std::accumulate(rows.begin(), rows.end(), 0, [in] ( int value, int i ) -> int {
+                    return value + static_cast<int>(bit_count(knot_hash(in + "-" + std::to_string(i))));
+                });
+            }
+
+            auto part2(input_t in) -> int {
+                (void)in;
+                throw std::runtime_error("Not implemented");
+            }
+
+            auto solve(gsl::span<std::string_view const> args) -> int {
+                if(args.size() < 1) {
+                    throw std::runtime_error("Missing part parameter");
+                }
+                auto const part = args[0];
+                args = args.subspan(1);
+
+                auto const in = input(args);
+                if(!in) {
+                    std::cerr << in.error() << "\n";
+                    return EXIT_FAILURE;
+                }
+
+                if(part == "1") {
+                    std::cout << part1(std::move(in).value()) << "\n";
+                    return EXIT_SUCCESS;
+                } else if(part == "2") {
+                    std::cout << part2(std::move(in).value()) << "\n";
+                    return EXIT_SUCCESS;
+                } else {
+                    throw std::runtime_error{"Parameter \""s.append(part).append("\" was not a valid part (try 1 or 2)")};
+                }
             }
         }
     }
@@ -1926,7 +1973,9 @@ namespace kab_advent {
 			return day11::solve( args );
 		} else if ( day == "12" ) {
 			return day12::solve( args );
-		} else {
+		} else if(day == "14") {
+            return day14::solve(args);
+        } else {
             throw std::runtime_error{"Parameter \""s.append(day).append("\" was not a valid day (try 1-25)")};
         }
     }
