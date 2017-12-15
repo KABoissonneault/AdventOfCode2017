@@ -8,6 +8,8 @@
 #include <regex>
 #include <variant>
 #include <map>
+#include <chrono>
+#include <cstdint>
 
 #include "algorithm.h"
 #include "error.h"
@@ -1708,24 +1710,6 @@ namespace kab_advent {
 
 			using input_t = std::vector<program>;
 
-			auto consume_newline( std::string_view & line ) -> bool {
-				if ( !line.empty() && line.front() == '\n' ) {
-					line.remove_prefix( 1 );
-					return true;
-				} else {
-					return false;
-				}
-			}
-
-			auto consume_delimiter( std::string_view & line ) -> bool {
-				if ( !line.empty() && line.front() == ',' ) {
-					line.remove_prefix( 1 );
-					return true;
-				} else {
-					return false;
-				}
-			}
-
 			auto consume_arrow( std::string_view & line ) -> bool {
 				line = left_trim( line );
 				if ( begins_with( line, "<->" ) ) {
@@ -1875,6 +1859,168 @@ namespace kab_advent {
 				}
 			}
 		}
+		
+		namespace day13 {
+			struct layer {
+				int depth;
+				int range;
+			};
+
+			using input_t = std::vector<layer>;
+			
+			auto parse_layer( std::string_view line ) -> expected<parsed_value<layer>> {
+				auto const depth_result = to_int( line );
+				if ( !depth_result ) {
+					return make_unexpected( depth_result.error() );
+				}
+				line = line.substr(std::distance(line.data(), depth_result.value().conversion_end));
+
+				if ( !consume_char( line, ':' ) ) {
+					return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Expected ':' after depth in layer input" ) );
+				}
+				line = left_trim( line );
+
+				auto const range_result = to_int( line );
+				if ( !range_result ) {
+					return make_unexpected( range_result.error() );
+				}
+				line = line.substr( std::distance( line.data(), range_result.value().conversion_end ) );
+
+				return parsed_value<layer>{ layer { depth_result.value().data, range_result.value().data }, line };
+			}
+
+			auto parse_layers( std::string_view lines ) -> expected<input_t> {
+				auto in = input_t();
+				do {
+					lines = left_trim( lines );
+					auto const program_result = parse_layer( lines );
+					if ( !program_result ) {
+						return make_unexpected( program_result.error() );
+					}
+
+					in.push_back( program_result.value().value );
+					lines = program_result.value().rest_instruction;
+				} while ( consume_newline( lines ) && !lines.empty() );
+				return in;
+			}
+
+			auto input( gsl::span<std::string_view const> args ) -> expected<input_t> {
+				if ( args.size() == 0 ) {
+					return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Stdin input not supported for this day" ) );
+				} else if ( args[0] == "--input" ) {
+					return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "--input not supported for this day" ) );
+				} else if ( args[0] == "--file" ) {
+					if ( args.size() < 2 ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "Missing filename after --input" ) );
+					}
+
+					auto const filepath = args[1];
+					auto file = std::ifstream( std::string( filepath ) );
+					if ( !file ) {
+						return make_unexpected( error_info( std::make_error_code( std::errc::invalid_argument ), "File \""s.append( filepath ).append( "\" could not be opened" ) ) );
+					}
+
+					auto input = std::string();
+					auto line = std::string();
+					while ( std::getline( file, line ) ) {
+						if ( !line.empty() ) {
+							input.append( line ).append( "\n" );
+						}
+					}
+
+					return parse_layers( input );
+				} else {
+					return make_unexpected(
+						error_info( std::make_error_code( std::errc::invalid_argument ), "Invalid parameter \""s.append( args[0] ).append( "\"" ) )
+					);
+				}
+			}
+
+			auto layer_position( layer const& l, int64_t t ) -> int {
+				auto const step_count = l.range * 2 - 2;
+				return t % step_count;
+			}
+
+			auto part1( input_t input ) -> int {
+				auto t = 0;
+				auto severity_level = 0;
+				for ( layer const& l : input ) {
+					auto const depth = l.depth;
+					if ( layer_position( l, t + l.depth ) == 0 ) {
+						severity_level += l.depth * l.range;
+					}
+				}
+
+				return severity_level;
+			}
+
+			auto part2( input_t input ) -> std::int64_t {
+				for ( int64_t t = 0; t != INT64_MAX; ++t ) {
+					auto spotted = false;
+					for ( layer const& l : input ) {
+						if ( layer_position( l, t + l.depth ) == 0 ) {
+							spotted = true;
+							break;
+						}
+					}
+					if ( !spotted ) {
+						return t;
+					}
+				}
+
+				throw std::runtime_error( "Couldn't find a solution before integer overflow" );
+			}
+
+			auto solve( gsl::span<std::string_view const> args ) -> int {
+				if ( args.size() < 1 ) {
+					throw std::runtime_error( "Missing part parameter" );
+				}
+				auto const part = args[0];
+				args = args.subspan( 1 );
+
+				auto const in = input( args );
+				if ( !in ) {
+					std::cerr << in.error() << "\n";
+					return EXIT_FAILURE;
+				}
+
+				if ( part == "1" ) {
+					std::cout << part1( std::move( in ).value() ) << "\n";
+					return EXIT_SUCCESS;
+				} else if ( part == "2" ) {
+					std::cout << part2( std::move( in ).value() ) << "\n";
+					return EXIT_SUCCESS;
+				} else {
+					throw std::runtime_error { "Parameter \""s.append( part ).append( "\" was not a valid part (try 1 or 2)" ) };
+				}
+			}
+		}
+
+		namespace day14 {
+			using input_t = std::string;
+
+			auto input( gsl::span<std::string_view const> args ) -> expected<input_t> {
+				auto input = std::string();
+				if ( args.size() == 0 ) {
+					if ( !std::getline( std::cin, input ) ) {
+						return expected<std::string>{ unexpect,
+							error_info( std::make_error_code( std::errc::invalid_argument ), "Could not read input" ) };
+					}
+				} else if ( args[0] == "--input" ) {
+					if ( args.size() < 2 ) {
+						return expected<std::string>{ unexpect,
+							error_info( std::make_error_code( std::errc::invalid_argument ), "Missing input after --input" ) };
+					}
+					input = args[1];
+				} else {
+					return expected<std::string>{ unexpect,
+						error_info( std::make_error_code( std::errc::invalid_argument ), "Invalid parameter \""s.append( args[0] ).append( "\"" ) ) };
+				}
+				return input;
+			}
+
+			auto solve(gsl::)
+		}
     }
 
     auto day(gsl::span<std::string_view const> args) -> int {
@@ -1908,6 +2054,8 @@ namespace kab_advent {
 			return day11::solve( args );
 		} else if ( day == "12" ) {
 			return day12::solve( args );
+		} else if ( day == "13" ) {
+			return day13::solve( args );
 		} else {
             throw std::runtime_error{"Parameter \""s.append(day).append("\" was not a valid day (try 1-25)")};
         }
