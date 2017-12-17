@@ -1940,6 +1940,147 @@ namespace kab_advent {
                 }
             }
         }
+
+        namespace day15 {
+            struct input_t {
+                int64_t start_generator_a;
+                int64_t start_generator_b;
+            };
+
+            auto parse_integer_pair(std::string_view line) -> expected<input_t> {
+                auto const first_result = to_int(line);
+                if(!first_result) {
+                    return make_unexpected(first_result.error());
+                }
+                line = line.substr(std::distance(line.data(), first_result.value().conversion_end));
+
+                line = left_trim(line);
+                auto const second_result = to_int(line);
+                if(!second_result) {
+                    return make_unexpected(second_result.error());
+                }
+                
+                return input_t{first_result.value().data, second_result.value().data};
+            }
+
+            auto input(gsl::span<std::string_view const> args) -> expected<input_t> {
+                if(args.size() == 0) {
+                    auto line = std::string();
+                    if(!std::getline(std::cin, line)) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Could not parse input to a string"));
+                    }
+
+                    return parse_integer_pair(line);
+                } else if(args[0] == "--input") {
+                    if(args.size() < 2) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Missing input after --input"));
+                    }
+
+                    return parse_integer_pair(args[1]);
+                } else if(args[0] == "--file") {
+                    if(args.size() < 2) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "Missing filename after --input"));
+                    }
+
+                    auto const filepath = args[1];
+                    auto file = std::ifstream(std::string(filepath));
+                    if(!file) {
+                        return make_unexpected(error_info(std::make_error_code(std::errc::invalid_argument), "File \""s.append(filepath).append("\" could not be opened")));
+                    }
+
+                    auto input = std::string();
+                    auto line = std::string();
+                    while(std::getline(file, line)) {
+                        if(!line.empty()) {
+                            input.append(line).append("\n");
+                        }
+                    }
+
+                    return parse_integer_pair(input);
+                } else {
+                    return make_unexpected(
+                        error_info(std::make_error_code(std::errc::invalid_argument), "Invalid parameter \""s.append(args[0]).append("\""))
+                    );
+                }
+            }
+
+            auto constexpr generator_a_factor = 16807;
+            auto constexpr generator_b_factor = 48271;
+            auto constexpr remainder_factor = 2147483647;
+            auto constexpr generator_mask = 0xFFFF;
+
+            auto part1(input_t in) -> int64_t {
+                auto generator_a_value = in.start_generator_a;
+                auto generator_b_value = in.start_generator_b;
+
+                auto const generate_a = [&generator_a_value] {
+                    return generator_a_value = generator_a_value * generator_a_factor % remainder_factor;
+                };
+                auto const generate_b = [&generator_b_value] {
+                    return generator_b_value = generator_b_value * generator_b_factor % remainder_factor;
+                };
+
+                auto const iota = make_iota_view(0, 40'000'000);
+                return std::accumulate(iota.begin(), iota.end(), 0, [generate_a, generate_b] (auto const current_match, auto) {
+                    if((generate_a() & generator_mask) == (generate_b() & generator_mask)) {
+                        return current_match + 1;
+                    } else {
+                        return current_match;
+                    }
+                });                
+            }
+
+            auto part2(input_t in) -> int64_t {
+                auto generator_a_value = in.start_generator_a;
+                auto generator_b_value = in.start_generator_b;
+
+                auto const generate_a = [&generator_a_value] {
+                    do {
+                        generator_a_value = generator_a_value * generator_a_factor % remainder_factor;
+                    } while(generator_a_value % 4);
+                    return generator_a_value;
+                };
+                auto const generate_b = [&generator_b_value] {
+                    do {
+                        generator_b_value = generator_b_value * generator_b_factor % remainder_factor;
+                    } while(generator_b_value % 8);
+                    return generator_b_value;
+                };
+
+                auto const iota = make_iota_view(0, 5'000'000);
+                return std::accumulate(iota.begin(), iota.end(), 0, [generate_a, generate_b] (auto const current_match, auto) {
+                    if((generate_a() & generator_mask) == (generate_b() & generator_mask)) {
+                        return current_match + 1;
+                    } else {
+                        return current_match;
+                    }
+                });
+            }
+
+            auto solve(gsl::span<std::string_view const> args) -> int {
+                if(args.size() < 1) {
+                    throw std::runtime_error("Missing part parameter");
+                }
+                auto const part = args[0];
+                args = args.subspan(1);
+
+                auto const in = input(args);
+                if(!in) {
+                    std::cerr << in.error() << "\n";
+                    return EXIT_FAILURE;
+                }
+
+                if(part == "1") {
+                    std::cout << part1(std::move(in).value()) << "\n";
+                    return EXIT_SUCCESS;
+                } else if(part == "2") {
+                    std::cout << part2(std::move(in).value()) << "\n";
+                    return EXIT_SUCCESS;
+                } else {
+                    throw std::runtime_error{"Parameter \""s.append(part).append("\" was not a valid part (try 1 or 2)")};
+                }
+            }
+        }
     }
 
     auto day(gsl::span<std::string_view const> args) -> int {
@@ -1975,6 +2116,8 @@ namespace kab_advent {
 			return day12::solve( args );
 		} else if(day == "14") {
             return day14::solve(args);
+        } else if(day == "15") {
+            return day15::solve(args);
         } else {
             throw std::runtime_error{"Parameter \""s.append(day).append("\" was not a valid day (try 1-25)")};
         }
