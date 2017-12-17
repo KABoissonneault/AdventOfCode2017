@@ -2021,12 +2021,8 @@ namespace kab_advent {
                 };
 
                 auto const iota = make_iota_view(0, 40'000'000);
-                return std::accumulate(iota.begin(), iota.end(), 0, [generate_a, generate_b] (auto const current_match, auto) {
-                    if((generate_a() & generator_mask) == (generate_b() & generator_mask)) {
-                        return current_match + 1;
-                    } else {
-                        return current_match;
-                    }
+                return std::count_if(iota.begin(), iota.end(), [generate_a, generate_b] (auto) -> bool {
+                    return (generate_a() & generator_mask) == (generate_b() & generator_mask);
                 });                
             }
 
@@ -2048,12 +2044,8 @@ namespace kab_advent {
                 };
 
                 auto const iota = make_iota_view(0, 5'000'000);
-                return std::accumulate(iota.begin(), iota.end(), 0, [generate_a, generate_b] (auto const current_match, auto) {
-                    if((generate_a() & generator_mask) == (generate_b() & generator_mask)) {
-                        return current_match + 1;
-                    } else {
-                        return current_match;
-                    }
+                return std::count_if(iota.begin(), iota.end(), [generate_a, generate_b] (auto) -> bool {
+                    return (generate_a() & generator_mask) == (generate_b() & generator_mask);
                 });
             }
 
