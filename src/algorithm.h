@@ -3,6 +3,7 @@
 #include <vector>
 #include <type_traits>
 #include <iterator>
+#include <cctype>
 
 namespace kab_advent {
 	template<typename RangeT, typename PredicateT, 
@@ -188,6 +189,67 @@ namespace kab_advent {
         return circular_view<RangeT &>(range);
     }
 
+    template<typename IntegerT>
+    class iota_view {
+    public:
+        iota_view(IntegerT first, IntegerT end)
+            : first(first)
+            , last(end) {
+
+        }
+
+        class iota_iterator {
+        public:
+            using value_type = IntegerT;
+            using difference_type = std::ptrdiff_t;
+            using reference = value_type const&;
+            using pointer = value_type const*;
+            using iterator_category = std::forward_iterator_tag;
+
+
+            iota_iterator(IntegerT value)
+                : value(value) {
+
+            }
+
+            auto operator*() const -> reference {
+                return value;
+            }
+
+            auto operator++() -> iota_iterator & {
+                ++value;
+                return *this;
+            }
+
+            auto operator==(iota_iterator other) const {
+                return value == other.value;
+            }
+            auto operator!=(iota_iterator other) const {
+                return !(*this == other);
+            }
+
+        private:
+            IntegerT value;
+        };
+
+        auto begin() const noexcept -> iota_iterator {
+            return {first};
+        }
+
+        auto end() const noexcept -> iota_iterator {
+            return {last};
+        }
+
+    private:
+        IntegerT first;
+        IntegerT last;
+    };
+
+    template<typename IntegerT>
+    auto make_iota_view(IntegerT start, IntegerT end) -> iota_view<std::decay_t<IntegerT>> {
+        return {start, end};
+    }
+
 #undef KAB_ITERATOR_CATEGORY_REQUIRES
 
 	template<typename PredicateT>
@@ -198,11 +260,45 @@ namespace kab_advent {
 		return s;
 	}
 
-	auto left_trim( std::string_view s ) -> std::string_view {
+	inline auto left_trim( std::string_view s ) -> std::string_view {
 		return left_trim( s, [] ( char const c ) -> bool { return std::isspace( c );} );
 	}
 
-	auto begins_with( std::string_view s, std::string_view v ) -> bool {
+	inline auto begins_with( std::string_view s, std::string_view v ) -> bool {
 		return s.compare( 0, v.size(), v ) == 0;
 	}
+
+    inline const char* hex_char_to_bin(char c) {
+        switch(toupper(c)) {
+            case '0': return "0000";
+            case '1': return "0001";
+            case '2': return "0010";
+            case '3': return "0011";
+            case '4': return "0100";
+            case '5': return "0101";
+            case '6': return "0110";
+            case '7': return "0111";
+            case '8': return "1000";
+            case '9': return "1001";
+            case 'A': 
+            case 'a':
+                return "1010";
+            case 'B': 
+            case 'b':
+                return "1011";
+            case 'C':
+            case 'c':
+                return "1100";
+            case 'D':
+            case 'd':
+                return "1101";
+            case 'E':
+            case 'e':
+                return "1110";
+            case 'F':
+            case 'f':
+                return "1111";
+        }
+        throw std::runtime_error("Invalid char");
+    }
 }
